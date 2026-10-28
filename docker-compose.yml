@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: jungle_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-jungle_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-jungle_secret}
+      POSTGRES_DB: ${DB_NAME:-jungle_gaming_db}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - jungle_pgdata:/var/lib/postgresql/data
+
+volumes:
+  jungle_pgdata:

@@ -1,0 +1,6 @@
+export enum GameStatus {
+  WAITING_BETS = 'WAITING_BETS',
+  RUNNING = 'RUNNING',
+  CRASHED = 'CRASHED',
+  FINISHED = 'FINISHED',
+}
