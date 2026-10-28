@@ -26,18 +26,18 @@ Mostra como o sistema de jogos se posiciona em relação aos seus usuários dire
 C4Context
     title Nível 1: Diagrama de Contexto do Sistema (System Context)
 
-    Person(player, "Apostador / Jogador", "Usuário que realiza apostas, acompanha multiplicadores em tempo real e faz cashout.")
-    Person(operator, "Operador / Auditor", "Auditoria interna responsável por verificar relatórios de conformidade e integridade das rodadas.")
+    Person(player, "Apostador", "Jogador em tempo real")
+    Person(operator, "Operador / Auditor", "Auditoria de conformidade")
 
-    System(jungleSystem, "Motor de Jogos & Apostas", "Backend responsável pelo ciclo de vida da partida, transações financeiras atômicas e streaming de multiplicadores.")
+    System(jungleSystem, "Motor de Jogos & Apostas", "Backend NestJS + WebSockets")
 
-    System_Ext(awsServices, "AWS Cloud Services", "SNS (Pub/Sub Fan-Out) e SQS (Filas com retenção durável) para processamento assíncrono.")
-    System_Ext(regulator, "Sistema Regulador de Apostas", "Órgão externo governamental de auditoria e compliance de iGaming.")
+    System_Ext(awsServices, "AWS Services", "SNS (Pub/Sub) e SQS (Filas)")
+    System_Ext(regulator, "Regulador", "Auditoria governamental de iGaming")
 
-    Rel(player, jungleSystem, "Conecta, aposta e recebe ticks da rodada", "WSS / HTTPS")
-    Rel(operator, jungleSystem, "Audita histórico e movimentações de carteira", "HTTPS / REST")
-    Rel(jungleSystem, awsServices, "Publica eventos de apostas e rodadas finalizadas", "AWS SDK / TLS")
-    Rel(awsServices, regulator, "Encaminha eventos de auditoria para compliance", "HTTPS / Webhooks")
+    Rel_R(player, jungleSystem, "Aposta e Cashout", "WSS / HTTPS")
+    Rel_D(operator, jungleSystem, "Audita histórico", "REST")
+    Rel_R(jungleSystem, awsServices, "Dispara eventos", "AWS SDK")
+    Rel_D(awsServices, regulator, "Encaminha relatórios", "Webhooks")
 ```
 
 ---
@@ -50,27 +50,25 @@ Apresenta as aplicações, bancos de dados e serviços em nuvem implantáveis qu
 C4Container
     title Nível 2: Diagrama de Contêineres (Containers)
 
-    Person(player, "Apostador / Jogador", "Cliente final da plataforma")
-
-    Container(spa, "Single Page Application (SPA)", "React / TypeScript", "Interface gráfica onde o jogador interage com a partida em tempo real.")
+    Person(player, "Apostador", "Cliente final")
+    Container(spa, "Frontend SPA", "React / TypeScript", "Interface do jogador em tempo real")
 
     Container_Boundary(backendBoundary, "Ambiente Backend (Container Docker)") {
-        Container(apiApp, "Backend API & Game Engine", "NestJS, TypeScript, Node.js", "Expõe endpoints REST para carteira e Gateway WebSocket para partidas em tempo real.")
-        ContainerDb(dbPostgres, "Banco de Dados Relacional", "PostgreSQL 16", "Armazena carteiras, histórico de rodadas e apostas com garantias ACID e transações atômicas.")
+        Container(apiApp, "API & Game Engine", "NestJS / TypeScript", "REST e WebSocket Gateway")
+        ContainerDb(dbPostgres, "Banco de Dados", "PostgreSQL 16", "Persistência ACID com Lock Pessimista")
     }
 
     Container_Boundary(awsBoundary, "Infraestrutura de Mensageria (AWS)") {
-        Container(snsTopic, "Tópico de Eventos (SNS)", "AWS SNS", "Tópico Pub/Sub que recebe eventos de rodadas e distribui em Fan-Out.")
-        Container(sqsQueue, "Filas Assíncronas (SQS)", "AWS SQS", "Buffers duráveis de mensagens para processamento de pagamentos e auditoria.")
+        Container(snsTopic, "Tópico SNS", "AWS SNS", "Pub/Sub Fan-Out de rodadas")
+        Container(sqsQueue, "Fila SQS", "AWS SQS", "Buffer durável de pagamentos")
     }
 
-    Rel(player, spa, "Interage visualmente", "GUI")
-    Rel(spa, apiApp, "Dispara apostas e recebe multiplicadores", "WebSocket (WSS)")
-    Rel(spa, apiApp, "Consulta saldo e realiza depósitos", "HTTPS / JSON")
-    Rel(apiApp, dbPostgres, "Lê e grava dados com Unit of Work e Lock Pessimista", "TCP / PostgreSQL Protocol")
-    Rel(apiApp, snsTopic, "Dispara PlayerCashedOutEvent", "AWS SDK / HTTPS")
-    Rel(apiApp, sqsQueue, "Enfileira BetPlacedEvent", "AWS SDK / HTTPS")
-    Rel(snsTopic, sqsQueue, "Replica eventos via padrão Fan-Out", "AWS Internal")
+    Rel_D(player, spa, "Interage", "GUI")
+    Rel_R(spa, apiApp, "Apostas e Ticks", "WSS / HTTPS")
+    Rel_D(apiApp, dbPostgres, "Lê e grava dados", "TCP / PostgreSQL")
+    Rel_R(apiApp, snsTopic, "Publica eventos", "AWS SDK")
+    Rel_D(apiApp, sqsQueue, "Enfileira tarefas", "AWS SDK")
+    Rel_D(snsTopic, sqsQueue, "Fan-Out", "AWS Internal")
 ```
 
 ---
@@ -83,36 +81,36 @@ Detalha a estrutura modular interna da aplicação NestJS, evidenciando as camad
 C4Component
     title Nível 3: Diagrama de Componentes (Backend NestJS)
 
-    Container_Boundary(nestApp, "NestJS Backend Application") {
-        Component(gameGateway, "GameGateway", "NestJS WebSocketGateway", "Gerencia conexões Socket.IO, ingressa clientes em Rooms e emite ticks de multiplicador.")
-        Component(walletController, "WalletController", "NestJS Controller", "Expõe endpoints REST /wallets para consultas de saldo e depósitos.")
+    Container_Boundary(nestApp, "NestJS Application Core") {
+        Component(gameGateway, "GameGateway", "WebSocket Gateway", "Salas e broadcast de multiplicador")
+        Component(walletController, "WalletController", "REST Controller", "Consulta de saldo e depósitos")
         
-        Component(validationGuards, "Guard Clauses (Zod)", "Zod Contracts", "Valida estritamente os contratos de entrada antes de invocar a lógica de negócio.")
+        Component(validationGuards, "Guard Clauses", "Zod Schemas", "Validação estrita de contratos")
 
-        Component(placeBetUC, "PlaceBetUseCase", "Application Service", "Orquestra débito de carteira, registro de aposta e emissão de evento em transação atômica.")
-        Component(cashoutUC, "ExecuteCashoutUseCase", "Application Service", "Calcula ganhos pelo multiplicador atual, credita carteira e publica evento de cashout.")
+        Component(placeBetUC, "PlaceBetUseCase", "Application Service", "Orquestração de aposta atômica")
+        Component(cashoutUC, "ExecuteCashoutUseCase", "Application Service", "Cálculo de ganho e crédito")
 
-        Component(domainLayer, "Entidades de Domínio", "Classes TypeScript Puras", "Wallet, Bet e GameRound com regras de negócio encapsuladas e invariantes estritas.")
+        Component(domainLayer, "Domínio Puro", "Entidades TypeScript", "Wallet, Bet e GameRound")
 
-        Component(mikroOrm, "MikroORM Entity Manager", "MikroORM / Data Mapper", "Implementa Unit of Work e Identity Map, realizando batch flush no PostgreSQL.")
-        Component(eventPublisher, "AwsEventPublisherService", "IEventPublisher Adapter", "Despacha eventos de domínio para tópicos SNS e filas SQS.")
+        Component(mikroOrm, "MikroORM", "Unit of Work", "Controle transacional no PostgreSQL")
+        Component(eventPublisher, "EventPublisher", "Adapter SNS/SQS", "Despacho assíncrono de eventos")
     }
 
-    ContainerDb(postgresDb, "PostgreSQL Database", "PostgreSQL", "Persistência transacional")
+    ContainerDb(postgresDb, "PostgreSQL", "Database", "Persistência ACID")
     Container(awsCloud, "AWS Cloud", "SNS / SQS", "Infraestrutura de Mensageria")
 
-    Rel(gameGateway, validationGuards, "Valida payload da aposta")
-    Rel(walletController, validationGuards, "Valida payload de depósito")
-    Rel(validationGuards, placeBetUC, "Encaminha entrada validada")
-    Rel(validationGuards, cashoutUC, "Encaminha entrada validada")
-    Rel(placeBetUC, domainLayer, "Executa regras de negócio")
-    Rel(cashoutUC, domainLayer, "Executa regras de negócio")
-    Rel(placeBetUC, mikroOrm, "Executa em transação com Lock Pessimista")
-    Rel(cashoutUC, mikroOrm, "Persiste crédito em transação atômica")
-    Rel(placeBetUC, eventPublisher, "Publica BetPlacedEvent")
-    Rel(cashoutUC, eventPublisher, "Publica PlayerCashedOutEvent")
-    Rel(mikroOrm, postgresDb, "Commit atômico em lote", "SQL")
-    Rel(eventPublisher, awsCloud, "Envia mensagens assíncronas", "AWS Protocol")
+    Rel_D(gameGateway, validationGuards, "Valida payload")
+    Rel_D(walletController, validationGuards, "Valida payload")
+    Rel_D(validationGuards, placeBetUC, "Executa caso de uso")
+    Rel_D(validationGuards, cashoutUC, "Executa caso de uso")
+    Rel_R(placeBetUC, domainLayer, "Aplica regras")
+    Rel_R(cashoutUC, domainLayer, "Aplica regras")
+    Rel_D(placeBetUC, mikroOrm, "Transação com Lock")
+    Rel_D(cashoutUC, mikroOrm, "Crédito atômico")
+    Rel_R(placeBetUC, eventPublisher, "Enfileira SQS")
+    Rel_R(cashoutUC, eventPublisher, "Publica SNS")
+    Rel_D(mikroOrm, postgresDb, "Batch commit", "SQL")
+    Rel_D(eventPublisher, awsCloud, "Despacha", "AWS SDK")
 ```
 
 ---
