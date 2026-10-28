@@ -14,18 +14,7 @@ No ecossistema de **iGaming**, dois requisitos não-funcionais são inegociávei
 
 ## 🏛️ Arquitetura de Software — Modelo C4
 
-O sistema foi modelado seguindo a hierarquia dos 4 níveis do **Modelo C4 (Simon Brown)** para fornecer rastreabilidade arquitetural completa, desde o ecossistema externo até o nível de código.
-
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                        HIERARQUIA DO MODELO C4                         │
-├────────────────────────────────┬───────────────────────────────────────┤
-│ Nível 1: Contexto do Sistema   │ Usuários, atores e ecossistema externo│
-│ Nível 2: Contêineres           │ Unidades implantáveis (Web, API, DB)  │
-│ Nível 3: Componentes           │ Módulos internos do NestJS (DDD)      │
-│ Nível 4: Código                │ Diagrama de classes e regras de negócio│
-└────────────────────────────────┴───────────────────────────────────────┘
-```
+O sistema foi modelado seguindo os 4 níveis do **Modelo C4** para fornecer rastreabilidade arquitetural completa da plataforma de jogos.
 
 ---
 
@@ -65,15 +54,15 @@ C4Container
 
     Container(spa, "Single Page Application (SPA)", "React / TypeScript", "Interface gráfica onde o jogador interage com a partida em tempo real.")
 
-    Container_Boundary(backendBoundary, "Ambiente Backend (Container Docker)")
+    Container_Boundary(backendBoundary, "Ambiente Backend (Container Docker)") {
         Container(apiApp, "Backend API & Game Engine", "NestJS, TypeScript, Node.js", "Expõe endpoints REST para carteira e Gateway WebSocket para partidas em tempo real.")
         ContainerDb(dbPostgres, "Banco de Dados Relacional", "PostgreSQL 16", "Armazena carteiras, histórico de rodadas e apostas com garantias ACID e transações atômicas.")
-    Container_Boundary_End()
+    }
 
-    Container_Boundary(awsBoundary, "Infraestrutura de Mensageria (AWS)")
+    Container_Boundary(awsBoundary, "Infraestrutura de Mensageria (AWS)") {
         Container(snsTopic, "Tópico de Eventos (SNS)", "AWS SNS", "Tópico Pub/Sub que recebe eventos de rodadas e distribui em Fan-Out.")
         Container(sqsQueue, "Filas Assíncronas (SQS)", "AWS SQS", "Buffers duráveis de mensagens para processamento de pagamentos e auditoria.")
-    Container_Boundary_End()
+    }
 
     Rel(player, spa, "Interage visualmente", "GUI")
     Rel(spa, apiApp, "Dispara apostas e recebe multiplicadores", "WebSocket (WSS)")
@@ -94,7 +83,7 @@ Detalha a estrutura modular interna da aplicação NestJS, evidenciando as camad
 C4Component
     title Nível 3: Diagrama de Componentes (Backend NestJS)
 
-    Container_Boundary(nestApp, "NestJS Backend Application")
+    Container_Boundary(nestApp, "NestJS Backend Application") {
         Component(gameGateway, "GameGateway", "NestJS WebSocketGateway", "Gerencia conexões Socket.IO, ingressa clientes em Rooms e emite ticks de multiplicador.")
         Component(walletController, "WalletController", "NestJS Controller", "Expõe endpoints REST /wallets para consultas de saldo e depósitos.")
         
@@ -107,7 +96,7 @@ C4Component
 
         Component(mikroOrm, "MikroORM Entity Manager", "MikroORM / Data Mapper", "Implementa Unit of Work e Identity Map, realizando batch flush no PostgreSQL.")
         Component(eventPublisher, "AwsEventPublisherService", "IEventPublisher Adapter", "Despacha eventos de domínio para tópicos SNS e filas SQS.")
-    Container_Boundary_End()
+    }
 
     ContainerDb(postgresDb, "PostgreSQL Database", "PostgreSQL", "Persistência transacional")
     Container(awsCloud, "AWS Cloud", "SNS / SQS", "Infraestrutura de Mensageria")
